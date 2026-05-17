@@ -468,6 +468,58 @@ col_titolo, col_orologio = st.columns([3, 1])
 with col_titolo: st.title("🎧 SOREU Alpina - Sala Operativa")
 with col_orologio: st.metric(label="🕒 Orario Reale", value=datetime.now().strftime("%H:%M:%S"))
 
+# =========================================================
+# NUOVA SEZIONE: GESTIONE RINFORZI E MISSIONI ATTIVE
+# =========================================================
+st.divider()
+st.subheader("📡 Gestione Dinamica Missioni sul Territorio")
+st.info("Da qui puoi monitorare gli scenari aperti e inviare mezzi aggiuntivi (MSA/ELI) in supporto a quelli già presenti.")
+
+if st.session_state.missioni:
+    # Creiamo un contenitore per ogni missione attiva
+    for m_principale, dati_m in list(st.session_state.missioni.items()):
+        # Evitiamo di mostrare doppioni se più mezzi sono sulla stessa missione (logica semplificata)
+        with st.expander(f"📍 MISSIONE: {dati_m['comune']} - {dati_m['indirizzo']} (Mezzo: {m_principale})", expanded=True):
+            col_info, col_supporto = st.columns([2, 1])
+            
+            with col_info:
+                st.write(f"**Scenario:** {dati_m['sintomi']}")
+                st.write(f"**Codice:** {dati_m['codice']} | **Ospedale Previsto:** {dati_m['ospedale_assegnato']}")
+                
+                # Mostra se ci sono altri mezzi già in supporto su questa missione
+                altri_mezzi = [k for k, v in st.session_state.missioni.items() if v['timestamp_creazione'] == dati_m['timestamp_creazione'] and k != m_principale]
+                if altri_mezzi:
+                    st.caption(f"Mezzi aggiuntivi già sul posto: {', '.join(altri_mezzi)}")
+
+            with col_supporto:
+                # Selettore per inviare un supporto rapido
+                mezzi_liberi = [k for k, v in st.session_state.database_mezzi.items() if v['stato'] == "Libero in Sede"]
+                supporto_scelto = st.selectbox(f"Invia rinforzo a {m_principale}:", ["-- Seleziona Mezzo --"] + mezzi_liberi, key=f"sup_{m_principale}")
+                
+                if st.button(f"🚀 INVIA SUPPORTO", key=f"btn_sup_{m_principale}"):
+                    if supporto_scelto != "-- Seleziona Mezzo --":
+                        # Copiamo i dati della missione originale sul nuovo mezzo
+                        st.session_state.missioni[supporto_scelto] = dati_m.copy()
+                        # Aggiorniamo lo stato del mezzo di supporto
+                        st.session_state.database_mezzi[supporto_scelto]["stato"] = "1 - Partenza da sede"
+                        st.session_state.database_mezzi[supporto_scelto]["colore"] = "🟡"
+                        
+                        # Notifica e Log
+                        msg_radio = f"Centrale a {supporto_scelto}: Portatevi in supporto a {m_principale} su {dati_m['comune']}. Codice {dati_m['codice']}."
+                        aggiungi_log_radio("```
+
+---
+
+### Cosa cambia operativamente nel tuo simulatore?
+
+1.  **Visione d'Insieme:** NonCENTRALE", msg_radio)
+                        st.session_state.notifiche_centrale.append(f"🔄 SUPPORTO: {supporto vedi più solo una lista statica, ma hai un "pannello di comando" per ogni intervento aperto.
+2.  **Integrazione MSA_scelto} inviato su missione {m_principale}.")
+                        st.success(f"{supporto_scelto} inviato!")
+                        st.rerun/MSB:** Se vedi che un'ambulanza volontaria (**MSB**) è stata inviata su un evento che si rivela più grave (()
+else:
+    st.write("Nessuna missione attiva al momento. Il territorio è sotto controllo.")
+                                                                   
 # ==================== 1. SCHERMATA SELEZIONE SCRIVANIA ====================
 if st.session_state.scrivania_selezionata is None:
     st.subheader("🖥️ Selezione Postazione di Lavoro")
