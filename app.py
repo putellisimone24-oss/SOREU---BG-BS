@@ -584,7 +584,7 @@ else:
 
     st.sidebar.divider()
 
-    # ==================== 🎧 INTERFACCIA CENTRALE ====================
+# ==================== 🎧 INTERFACCIA CENTRALE ====================
     if st.session_state.ruolo == "centrale":
         
         with st.sidebar.expander("📊 APRI DASHBOARD AVANZATA", expanded=False):
@@ -623,7 +623,7 @@ else:
             col_evento, col_mappa = st.columns([1.5, 2])
             with col_evento:
                 st.header("📋 Ricezione Chiamate")
-               if st.button(f"✅ ACCETTA CHIAMATA", key=f"acc_{chiamata['id']}", use_container_width=True):
+                if st.button(f"✅ ACCETTA CHIAMATA", key=f"acc_{chiamata['id']}", use_container_width=True):
                     scelta_indirizzo = random.choice(database_indirizzi)
                     scelta_clinica = random.choice(scenari_clinici)
                     st.session_state.evento_corrente = {
@@ -697,13 +697,47 @@ else:
                 
                 st.subheader("📋 Missioni in Corso")
                 if st.session_state.missioni:
-                    for m, dati in st.session_state.missioni.items():
-                        c_m, c_o = st.columns([2, 1])
-                        with c_m: st.write(f"🚑 **{m}** -> {dati['target']} ({st.session_state.database_mezzi[m]['stato']})")
+                    for m, dati in list(st.session_state.missioni.items()):
+                        # Layout compatto per mostrare destinazione e stato del mezzo
+                        st.markdown(f"🚑 **{m}** ➡️ {dati['target']} | Stato: *{st.session_state.database_mezzi[m]['stato']}*")
+                        
+                        c_o, c_supp = st.columns([1.5, 2])
                         with c_o:
-                            nuovo_osp = st.selectbox(f"Osp. per {m}", list(st.session_state.database_ospedali.keys()), key=f"sel_osp_{m}")
+                            # Cambio ospedale originale
+                            nuovo_osp = st.selectbox(f"Osp. per {m}", list(st.session_state.database_ospedali.keys()), key=f"sel_osp_{m}", index=list(st.session_state.database_ospedali.keys()).index(dati.get("ospedale_confermato", dati["ospedale_assegnato"])))
                             if nuovo_osp != dati.get("ospedale_confermato", dati["ospedale_assegnato"]):
                                 st.session_state.missioni[m]["ospedale_confermato"] = nuovo_osp; st.toast(f"Ospedale aggiornato per {m} -> {nuovo_osp}")
+                        
+                        with c_supp:
+                            # Lista dinamica dei soli mezzi liberi in sede utilizzabili come supporto
+                            mezzi_disponibili_rinforzo = [risorsa for risorsa, info in st.session_state.database_mezzi.items() if info["stato"] == "Libero in Sede"]
+                            
+                            if mezzi_disponibili_rinforzo:
+                                mezzo_rinforzo = st.selectbox("Manda supporto:", ["-- Invia Supporto --"] + mezzi_disponibili_rinforzo, key=f"rinforzo_{m}")
+                                if mezzo_rinforzo != "-- Invia Supporto --":
+                                    ora_rinforzo = datetime.now().strftime("%H:%M:%S")
+                                    
+                                    # Genera la nuova missione clonando target, coordinate e ospedale
+                                    st.session_state.missioni[mezzo_rinforzo] = {
+                                        "target": dati["target"], "lat": dati["lat"], "lon": dati["lon"],
+                                        "codice": dati["codice"], "ospedale_assegnato": dati.get("ospedale_confermato", dati["ospedale_assegnato"]),
+                                        "timestamp_creazione": time.time(), "richiesto_ospedale": False,
+                                        "patologia": f"SUPPORTO a {m} ({dati.get('patologia', 'Generica')})"
+                                    }
+                                    
+                                    # Cambia stato del mezzo di supporto se non è in auto_mode
+                                    if not st.session_state.auto_mode:
+                                        st.session_state.database_mezzi[mezzo_rinforzo]["stato"] = "1 - Partenza da sede"
+                                        st.session_state.database_mezzi[mezzo_rinforzo]["colore"] = "🟡"
+                                    
+                                    # Registra i log radio e inserisce la notifica a schermo
+                                    aggiungi_log_radio(mezzo_rinforzo, f"STATO 1: Inviati dalla centrale in rinvio a supporto di {m}.")
+                                    st.session_state.notifiche_centrale.append(f"🔄 {mezzo_rinforzo} inviato in rinvio a supporto di {m}!")
+                                    riproduci_suono_notifica()
+                                    st.rerun()
+                            else:
+                                st.caption("⚠️ Nessuna risorsa libera in sede per supporto.")
+                        st.markdown("---")
                 else: st.caption("Nessuna missione in corso.")
         
         with tab_risorse:
@@ -722,18 +756,7 @@ else:
                         if dati["pazienti"] > 0: st.session_state.database_ospedali[osp]["pazienti"] -= 1; st.rerun()
 
     st.subheader("📩 Inbox Richieste Eventi (Server Posta)")
-if 'lista_eventi' in st.session_state and st.session_state.lista_eventi:
-    for ev in st.session_state.lista_eventi:
-        with st.chat_message("user"):
-            st.write(f"📌 **{ev['tipo']}** a **{ev['luogo']}**")
-            st.caption(f"ID Protocollo: {ev['id_evento']} | Data: {ev['data']}")
-            col1, col2 = st.columns(2)
-            if col1.button(f"APPROVA {ev['id_evento']}"):
-                st.success("Evento approvato e inserito nel calendario operativo!")
-            if col2.button(f"RIFIUTA {ev['id_evento']}"):
-                st.error("Richiesta respinta.")
-else:
-    st.info("Nessuna nuova richiesta di eventi via email.")
+
 
     # ==================== 🚑 INTERFACCIA MEZZO ====================
     elif st.session_state.ruolo == "mezzo":
